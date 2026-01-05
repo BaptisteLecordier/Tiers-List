@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tier List</title>
+  <style>
+    :root {
+      --bg: #161616;
+      --panel: #1f1f1f;
+      --text: #f5f5f5;
+      --accent: #2b2b2b; /* gris pour les boutons et corbeille */
+      --border: #333;
+      --row-height: 90px;
+      --inner-padding: 4px; /* espace bordure <-> contenu pour tiers & banc */
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px 16px 60px;
+    }
+
+    /* ---------- Boutons ---------- */
+
+    .btn {
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: var(--accent);   /* gris */
+      color: #ffffff;              /* texte blanc */
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
+    }
+
+    .btn.secondary {
+      background: var(--accent);   /* même fond que les autres */
+      color: #ffffff;
+      border: 1px solid var(--border);
+    }
+
+    .btn:hover {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .btn input[type="file"] { display: none; }
+
+    /* ---------- Zone capturable (export PNG) ---------- */
+
+    #capture-area {
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #101010;
+      padding: 16px 16px 12px;
+      margin-bottom: 10px;
+    }
+
+    #export-header {
+      text-align: left;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    #export-title,
+    #export-subtitle {
+      outline: none;
+      cursor: text;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-height: 1.2em;
+    }
+
+    #export-title {
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    #export-subtitle {
+      font-size: 14px;
+      opacity: .85;
+    }
+
+    #export-title:focus,
+    #export-subtitle:focus {
+      box-shadow: inset 0 -2px 0 #ffffff55;
+    }
+
+    /* Placeholder visuel (non exporté car traité dans le clone) */
+    [data-placeholder]:empty::before {
+      content: attr(data-placeholder);
+      opacity: 0.4;
+    }
+
+    /* ---------- Tiers ---------- */
+
+    .tier-list {
+      width: 100%;
+      position: relative;
+    }
+
+    .tier-row {
+      --tier-color: #ffb347;
+      --tier-text-color: #000;
+      display: grid;
+      grid-template-columns: 110px 1fr 60px; /* label | images | contrôles */
+      border-bottom: 1px solid var(--border);
+      min-height: calc(var(--row-height) + 2 * var(--inner-padding));
+      background: #111;
+      transition: transform 180ms ease;
+    }
+
+    .tier-row:last-child {
+      border-bottom: none;
+    }
+
+    .tier-label {
+      position: relative;
+      z-index: 0;
+      background: var(--tier-color);
+      color: var(--tier-text-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      border-right: 1px solid var(--border);
+      padding: 6px 8px;
+      cursor: text;
+      user-select: text;
+      outline: none;
+      text-align: center;
+      white-space: normal;
+      word-break: break-word;
+      overflow: hidden;
+    }
+
+    .tier-label:focus {
+      box-shadow: inset 0 0 0 2px #00000055;
+    }
+
+    .tier-items {
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      align-items: flex-start;
+      padding: var(--inner-padding);
+      gap: 0;
+      background: #181818;
+      min-height: calc(var(--row-height) + 2 * var(--inner-padding));
+    }
+
+    /* ---------- Colonne flèches + roue ---------- */
+
+    .tier-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr; /* flèches | roue */
+      border-left: 1px solid var(--border);
+      background: #111;
+    }
+
+    .controls-arrows,
+    .controls-gear {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .controls-arrows {
+      justify-content: center;
+      gap: 4px;       /* espace réduit entre les deux flèches */
+      padding: 4px 0;
+    }
+
+    .controls-gear {
+      justify-content: center;
+    }
+
+    .icon-btn {
+      border: none;
+      background: transparent;
+      color: #ffffff;
+      cursor: pointer;
+      width: 100%;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      padding: 0;
+      border-radius: 0;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    .icon-btn:hover {
+      filter: brightness(1.2);
+      transform: translateY(-1px);
+    }
+
+    .icon-btn:active {
+      transform: translateY(0);
+    }
+
+    /* ---------- Vignettes d’images ---------- */
+
+    .tier-item {
+      flex: 0 0 auto;
+      width: var(--row-height);
+      height: var(--row-height);
+      border-radius: 4px;
+      background: transparent;
+      border: none;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer; /* main */
+      transition: transform 120ms ease, box-shadow 120ms ease;
+      position: relative;
+      z-index: 0;
+    }
+
+    .tier-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      background: transparent;
+    }
+
+    .tier-item.dragging {
+      opacity: 1;
+      cursor: pointer;
+    }
+
+    .tier-item:hover {
+      z-index: 1;
+      transform: scale(1.06); /* agrandissement léger sans impacter le layout */
+
+    }
+
+    /* ---------- Barre de boutons (à gauche) ---------- */
+
+    .top-bar {
+      display: flex;
+      justify-content: flex-start;
+      margin: 10px 0;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* ---------- Banc + corbeille ---------- */
+
+    .bench-wrapper {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .bench-section { margin-top: 10px; }
+
+    #bench {
+      background: #181818;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      min-height: calc(var(--row-height) + 2 * var(--inner-padding));
+      padding: var(--inner-padding);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0;                    /* même logique que tier-items */
+      align-content: flex-start;
+      align-items: flex-start;
+      flex: 1;
+    }
+
+    #trash-bin {
+      width: var(--row-height);
+      height: var(--row-height);
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+      border: none;
+      transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
+    }
+
+    #trash-bin img {
+      width: 45%;
+      height: 45%;
+      object-fit: contain;
+      display: block;
+    }
+
+
+
+    #trash-bin.drag-over {
+      filter: brightness(1.1);
+      transform: scale(1.04);
+    }
+
+    /* ---------- Modales ---------- */
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      backdrop-filter: blur(4px); /* flou */
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: #1f1f1f;
+      border-radius: 8px;
+      padding: 16px 18px 14px;
+      width: min(420px, 95vw);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+      border: 1px solid #333;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-bottom: 12px;  /* plus d’espace avec le reste */
+    }
+
+    .close-x {
+      border: none;
+      background: transparent;
+      color: #aaa;
+      font-size: 18px;
+      cursor: pointer;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    .close-x:hover {
+      filter: brightness(1.3);
+      transform: scale(1.05);
+    }
+
+    .modal-section {
+      margin-bottom: 16px;  /* plus d’espace entre champ / couleurs / boutons */
+      font-size: 14px;
+    }
+
+    #tier-name-input {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #121212;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .color-swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+      margin-bottom: 2px;
+    }
+
+    .color-swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 2px solid #ffffff33;
+      cursor: pointer;
+      transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+
+    .color-swatch:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+    }
+
+    .color-swatch.selected {
+      border-color: #fff;
+    }
+
+    .color-swatch[data-special="sparkle"] {
+      background-image: linear-gradient(
+        125deg,
+        #ffe066 0%,
+        #ff6ec7 28%,
+        #8f5bff 55%,
+        #5af2ff 78%,
+        #7dffb0 100%
+      );
+      background-color: transparent;
+    }
+
+    .modal-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .modal-actions .btn {
+      width: 100%;
+      justify-content: center;
+      font-size: 13px;
+      padding: 6px 8px;
+    }
+
+    .btn.danger {
+      background: #e55353;
+      color: #fff;
+    }
+
+    /* ---------- Overlay drag & drop (fichiers) ---------- */
+
+    .drag-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .drag-overlay.show { display: flex; }
+
+    .drag-overlay-inner {
+      border-radius: 16px;
+      border: 2px dashed #fff;
+      padding: 40px 60px;
+      max-width: 650px;
+      text-align: center;
+      background: rgba(0, 0, 0, 0.75);
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    /* ---------- Fond spécial (sparkle) ---------- */
+
+    .tier-row.tier-sparkle {
+      position: relative;
+      z-index: 1;
+    }
+
+    .tier-row.tier-sparkle .tier-label {
+      background: transparent;
+      color: #ffffff;
+      border-right: 1px solid var(--border);
+    }
+
+    .tier-row.tier-sparkle .tier-label::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 0;
+      background: linear-gradient(
+        125deg,
+        #ffe066 0%,
+        #ff6ec7 28%,
+        #8f5bff 55%,
+        #5af2ff 78%,
+        #7dffb0 100%
+      );
+      opacity: 1;
+      z-index: -1;
+    }
+
+    /* ---------- Prévisualisation custom du drag ---------- */
+
+    #drag-preview {
+      position: fixed;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 2000;
+      display: none;
+    }
+
+    #drag-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="capture-area">
+      <div id="export-header">
+        <div id="export-title"
+             contenteditable="true"
+             spellcheck="false"
+             data-placeholder="Titre de la tier list"></div>
+        <div id="export-subtitle"
+             contenteditable="true"
+             spellcheck="false"
+             data-placeholder="Sous-titre"></div>
+      </div>
+      <div id="tier-list" class="tier-list"></div>
+    </div>
+
+    <div class="top-bar">
+      <!-- ordre demandé : ajouter images, ajouter un tier, importer CSV, télécharger, réinitialiser -->
+      <button id="add-images-btn" class="btn">
+        + Ajouter des images
+        <input type="file" id="file-input" accept="image/*" multiple />
+      </button>
+
+      <button id="add-tier-btn" class="btn">+ Ajouter un tier</button>
+
+      <button id="import-csv-btn" class="btn secondary">
+        Importer CSV tiers
+        <input type="file" id="csv-input" accept=".csv,text/csv" />
+      </button>
+
+      <button id="download-png-btn" class="btn secondary">⬇ Télécharger en PNG</button>
+
+      <button id="reset-btn" class="btn">Réinitialiser la tier list</button>
+    </div>
+
+    <!-- Banc + corbeille -->
+    <section class="bench-section">
+      <div class="bench-wrapper">
+        <div id="bench"></div>
+        <div id="trash-bin" title="Supprimer les images">
+          <img src="./assets/img/trash.png" alt="Supprimer">
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Overlay drag&drop fichiers -->
+  <div id="drag-overlay" class="drag-overlay">
+    <div class="drag-overlay-inner">
+      Glisse tes images ici
+    </div>
+  </div>
+
+  <!-- Prévisualisation custom du drag -->
+  <div id="drag-preview"><img src="" alt=""></div>
+
+  <!-- Modale réglages tier -->
+  <div id="modal-backdrop" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <button class="close-x" id="modal-close">&times;</button>
+      </div>
+
+      <div class="modal-section">
+        <input type="text" id="tier-name-input" spellcheck="false" placeholder="Nom du tier" />
+      </div>
+
+      <div class="modal-section">
+        <div class="color-swatches" id="color-swatches"></div>
+      </div>
+
+      <div class="modal-section">
+        <div class="modal-actions">
+          <!-- ligne 1 -->
+          <button class="btn secondary" id="add-row-above">+ Ligne au-dessus</button>
+          <button class="btn secondary" id="add-row-below">+ Ligne en dessous</button>
+          <!-- ligne 2 -->
+          <button class="btn secondary" id="clear-row-images">Vider les images</button>
+          <button class="btn danger" id="delete-row">Supprimer la ligne</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale reset -->
+  <div id="reset-modal-backdrop" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <button class="close-x" id="reset-close">&times;</button>
+      </div>
+      <div class="modal-section">
+        Êtes-vous sûr de vouloir réinitialiser la tier list ?  
+        Toutes les images seront renvoyées au banc et les tiers seront recréés par défaut.
+      </div>
+      <div class="modal-section">
+        <div class="modal-actions">
+          <button class="btn secondary" id="reset-cancel">Annuler</button>
+          <button class="btn danger" id="reset-confirm">Réinitialiser</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- html2canvas pour export PNG -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <script>
+    const tierListEl   = document.getElementById("tier-list");
+    const benchEl      = document.getElementById("bench");
+    const fileInput    = document.getElementById("file-input");
+    const addImagesBtn = document.getElementById("add-images-btn");
+    const addTierBtn   = document.getElementById("add-tier-btn");
+    const downloadBtn  = document.getElementById("download-png-btn");
+    const dragOverlay  = document.getElementById("drag-overlay");
+    const trashBin     = document.getElementById("trash-bin");
+    const importCsvBtn = document.getElementById("import-csv-btn");
+    const csvInput     = document.getElementById("csv-input");
+    const resetBtn     = document.getElementById("reset-btn");
+
+    const dragPreview    = document.getElementById("drag-preview");
+    const dragPreviewImg = dragPreview.querySelector("img");
+
+    const exportTitle    = document.getElementById("export-title");
+    const exportSubtitle = document.getElementById("export-subtitle");
+
+    const modalBackdrop  = document.getElementById("modal-backdrop");
+    const modalClose     = document.getElementById("modal-close");
+    const colorSwatchesContainer = document.getElementById("color-swatches");
+    const nameInput      = document.getElementById("tier-name-input");
+    const btnRowAbove    = document.getElementById("add-row-above");
+    const btnRowBelow    = document.getElementById("add-row-below");
+    const btnClearImages = document.getElementById("clear-row-images");
+    const btnDeleteRow   = document.getElementById("delete-row");
+
+    const resetBackdrop  = document.getElementById("reset-modal-backdrop");
+    const resetClose     = document.getElementById("reset-close");
+    const resetCancel    = document.getElementById("reset-cancel");
+    const resetConfirm   = document.getElementById("reset-confirm");
+
+    let tierCounter = 0;
+    let isDraggingItem = false;
+    let dragPreviewWidth = 0;
+    let dragPreviewHeight = 0;
+    let currentTierRow = null;
+
+    const BASE_COLORS = [
+      "#ff7f7f", "#ffb47f", "#ffd37f", "#fff67f",
+      "#e3ff7f", "#c2ff7f", "#7fff9d", "#7fffbd",
+      "#7fffe3", "#7fd9ff", "#7fb1ff", "#b47fff",
+      "#ff7ff6", "#ff7fd9", "#ff7fa7",
+      "#ffffff", "#f0f0f0", "#d0d0d0", "#b0b0b0",
+      "#888888", "#555555", "#222222"
+    ];
+
+    const DEFAULT_ROW_COLORS = {
+      "A": "#7fffe3",
+      "B": "#e7ff6d",
+      "C": "#ffb47f",
+      "D": "#ff7f7f"
+    };
+
+    /* --------- helpers contraste --------- */
+    function getContrastColor(hex) {
+      if (!hex) return "#000000";
+      hex = hex.replace("#", "");
+      if (hex.length === 3) hex = hex.split("").map(c => c + c).join("");
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return luminance < 0.5 ? "#ffffff" : "#000000";
+    }
+
+    function setTierColor(row, colorHex) {
+      row.classList.remove("tier-sparkle");
+      row.style.setProperty("--tier-color", colorHex);
+      const textCol = getContrastColor(colorHex);
+      row.style.setProperty("--tier-text-color", textCol);
+    }
+
+    function setTierSparkle(row) {
+      row.classList.add("tier-sparkle");
+      row.style.removeProperty("--tier-color");
+      row.style.setProperty("--tier-text-color", "#ffffff");
+    }
+
+    function rgbToHex(rgb) {
+      if (!rgb || rgb.startsWith("#")) return rgb || "#ffb347";
+      const match = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+      if (!match) return "#ffb347";
+      const r = Number(match[1]).toString(16).padStart(2, "0");
+      const g = Number(match[2]).toString(16).padStart(2, "0");
+      const b = Number(match[3]).toString(16).padStart(2, "0");
+      return `#${r}${g}${b}`;
+    }
+
+    /* --------- placeholders titre / sous-titre --------- */
+    function normalizePlaceholder(el) {
+      if (el.textContent.trim() === "") {
+        el.textContent = "";
+      }
+    }
+
+    [exportTitle, exportSubtitle].forEach(el => {
+      el.setAttribute("spellcheck", "false");
+      normalizePlaceholder(el);
+      el.addEventListener("input", () => normalizePlaceholder(el));
+      el.addEventListener("blur", () => normalizePlaceholder(el));
+      el.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          el.blur();
+        }
+      });
+    });
+
+    /* --------- modale tiers : couleurs --------- */
+    BASE_COLORS.forEach(col => {
+      const s = document.createElement("div");
+      s.className = "color-swatch";
+      s.style.background = col;
+      s.dataset.color = col;
+      colorSwatchesContainer.appendChild(s);
+    });
+
+    const sparkleSwatch = document.createElement("div");
+    sparkleSwatch.className = "color-swatch";
+    sparkleSwatch.dataset.special = "sparkle";
+    sparkleSwatch.style.backgroundImage =
+      "linear-gradient(125deg,#ffe066 0%,#ff6ec7 28%,#8f5bff 55%,#5af2ff 78%,#7dffb0 100%)";
+    colorSwatchesContainer.appendChild(sparkleSwatch);
+
+    function updateSwatchSelection(key) {
+      document.querySelectorAll(".color-swatch").forEach(sw => {
+        const isSparkle = sw.dataset.special === "sparkle";
+        const swKey = isSparkle ? "sparkle" : rgbToHex(sw.dataset.color || "");
+        sw.classList.toggle("selected", swKey === key);
+      });
+    }
+
+    colorSwatchesContainer.addEventListener("click", e => {
+      const sw = e.target.closest(".color-swatch");
+      if (!sw || !currentTierRow) return;
+
+      if (sw.dataset.special === "sparkle") {
+        setTierSparkle(currentTierRow);
+        updateSwatchSelection("sparkle");
+      } else {
+        const col = sw.dataset.color;
+        setTierColor(currentTierRow, col);
+        updateSwatchSelection(rgbToHex(col));
+      }
+    });
+
+    function openModalForRow(row) {
+      currentTierRow = row;
+      const labelEl = row.querySelector(".tier-label");
+      nameInput.value = labelEl.textContent.trim();
+
+      if (row.classList.contains("tier-sparkle")) {
+        updateSwatchSelection("sparkle");
+      } else {
+        const currentColor =
+          row.style.getPropertyValue("--tier-color") ||
+          window.getComputedStyle(row).getPropertyValue("--tier-color") ||
+          "#ffb347";
+        const hex = rgbToHex(currentColor.trim());
+        updateSwatchSelection(hex);
+      }
+
+      modalBackdrop.classList.add("open");
+      nameInput.focus();
+      nameInput.select();
+    }
+
+    function closeModal() {
+      modalBackdrop.classList.remove("open");
+      currentTierRow = null;
+    }
+
+    modalClose.addEventListener("click", closeModal);
+    modalBackdrop.addEventListener("click", e => {
+      if (e.target === modalBackdrop) closeModal();
+    });
+
+    nameInput.addEventListener("input", () => {
+      if (!currentTierRow) return;
+      const labelEl = currentTierRow.querySelector(".tier-label");
+      labelEl.textContent = nameInput.value;
+    });
+
+    btnRowAbove.addEventListener("click", () => {
+      if (!currentTierRow) return;
+      const label = currentTierRow.querySelector(".tier-label").textContent;
+      const newRow = createTier(label);
+      tierListEl.insertBefore(newRow, currentTierRow);
+      closeModal();
+    });
+
+    btnRowBelow.addEventListener("click", () => {
+      if (!currentTierRow) return;
+      const label = currentTierRow.querySelector(".tier-label").textContent;
+      const newRow = createTier(label);
+      currentTierRow.after(newRow);
+      closeModal();
+    });
+
+    btnClearImages.addEventListener("click", () => {
+      if (!currentTierRow) return;
+      const itemsEl = currentTierRow.querySelector(".tier-items");
+      itemsEl.innerHTML = "";
+    });
+
+    btnDeleteRow.addEventListener("click", () => {
+      if (!currentTierRow) return;
+      const allRows = tierListEl.querySelectorAll(".tier-row");
+      if (allRows.length <= 1) {
+        alert("Vous devez garder au moins un tier.");
+        return;
+      }
+      currentTierRow.remove();
+      closeModal();
+    });
+
+    /* --------- création / init tiers --------- */
+    function createTier(labelText = "", options = {}) {
+      const row = document.createElement("div");
+      row.className = "tier-row";
+      row.dataset.tierId = ++tierCounter;
+
+      if (options.sparkle) {
+        setTierSparkle(row);
+      } else if (options.color) {
+        setTierColor(row, options.color);
+      } else {
+        const color = BASE_COLORS[(tierCounter - 1) % BASE_COLORS.length];
+        setTierColor(row, color);
+      }
+
+      row.innerHTML = `
+        <div class="tier-label" contenteditable="true" spellcheck="false">${labelText}</div>
+        <div class="tier-items"></div>
+        <div class="tier-controls">
+          <div class="controls-arrows">
+            <button class="icon-btn move-up" title="Monter">▲</button>
+            <button class="icon-btn move-down" title="Descendre">▼</button>
+          </div>
+          <div class="controls-gear">
+            <button class="icon-btn settings" title="Réglages">⚙</button>
+          </div>
+        </div>
+      `;
+
+      const labelEl = row.querySelector(".tier-label");
+      labelEl.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          labelEl.blur();
+        }
+      });
+
+      return row;
+    }
+
+    function initDefaultTiers() {
+      tierListEl.innerHTML = "";
+      tierCounter = 0;
+      const order = ["S", "A", "B", "C", "D"];
+      order.forEach(name => {
+        const options = {};
+        if (name === "S") {
+          options.sparkle = true;
+        } else if (DEFAULT_ROW_COLORS[name]) {
+          options.color = DEFAULT_ROW_COLORS[name];
+        }
+        const row = createTier(name, options);
+        tierListEl.appendChild(row);
+      });
+    }
+
+    initDefaultTiers();
+
+    addTierBtn.addEventListener("click", () => {
+      const row = createTier("Nouveau");
+      tierListEl.appendChild(row);
+      row.querySelector(".tier-label").focus();
+    });
+
+    /* --------- images : création vignette --------- */
+    function createImageItem(src, alt = "") {
+      const item = document.createElement("div");
+      item.className = "tier-item";
+      item.draggable = true;
+      item.innerHTML = `<img src="${src}" alt="${alt}">`;
+      return item;
+    }
+
+    /* --------- DRAG & DROP IMAGES AVEC CLONE CUSTOM --------- */
+
+    document.addEventListener("dragstart", e => {
+      const item = e.target.closest(".tier-item");
+      if (!item) return;
+
+      isDraggingItem = true;
+      item.classList.add("dragging");
+
+      const img = item.querySelector("img");
+      if (img) {
+        const rect = item.getBoundingClientRect();
+        dragPreviewWidth = rect.width;
+        dragPreviewHeight = rect.height;
+
+        dragPreviewImg.src = img.src;
+        dragPreview.style.width = dragPreviewWidth + "px";
+        dragPreview.style.height = dragPreviewHeight + "px";
+        dragPreview.style.display = "block";
+        dragPreview.style.left = (e.clientX - dragPreviewWidth / 2) + "px";
+        dragPreview.style.top  = (e.clientY - dragPreviewHeight / 2) + "px";
+      }
+
+      if (e.dataTransfer) {
+        const dummy = document.createElement("div");
+        dummy.style.width = "0px";
+        dummy.style.height = "0px";
+        e.dataTransfer.setDragImage(dummy, 0, 0);
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", "");
+      }
+    });
+
+    document.addEventListener("dragend", e => {
+      const item = e.target.closest(".tier-item");
+      if (item) item.classList.remove("dragging");
+
+      isDraggingItem = false;
+      dragPreview.style.display = "none";
+      trashBin.classList.remove("drag-over");
+    });
+
+    function getDragAfterElement(container, x) {
+      const items = [...container.querySelectorAll(".tier-item:not(.dragging)")];
+      return items.reduce(
+        (closest, child) => {
+          const box = child.getBoundingClientRect();
+          const offset = x - box.left - box.width / 2;
+          if (offset < 0 && offset > closest.offset) {
+            return { offset, element: child };
+          } else {
+            return closest;
+          }
+        },
+        { offset: Number.NEGATIVE_INFINITY, element: null }
+      ).element;
+    }
+
+    document.addEventListener("dragover", e => {
+      if (isDraggingItem && dragPreview.style.display === "block") {
+        dragPreview.style.left = (e.clientX - dragPreviewWidth / 2) + "px";
+        dragPreview.style.top  = (e.clientY - dragPreviewHeight / 2) + "px";
+      }
+
+      const container = e.target.closest(".tier-items, #bench");
+      const dragging = document.querySelector(".tier-item.dragging");
+      if (!container || !dragging) return;
+
+      e.preventDefault();
+      const afterElement = getDragAfterElement(container, e.clientX);
+      if (afterElement == null) {
+        container.appendChild(dragging);
+      } else {
+        container.insertBefore(dragging, afterElement);
+      }
+    });
+
+    document.addEventListener("drop", e => {
+      const container = e.target.closest(".tier-items, #bench");
+      if (!container) return;
+      e.preventDefault();
+    });
+
+    /* --------- ajout fichiers images --------- */
+
+    function handleFiles(fileList) {
+      const files = Array.from(fileList);
+      files.forEach(file => {
+        if (!file.type.startsWith("image/")) return;
+        const url = URL.createObjectURL(file);
+        const item = createImageItem(url, file.name);
+        benchEl.appendChild(item);
+      });
+    }
+
+    fileInput.addEventListener("change", e => {
+      handleFiles(e.target.files);
+      fileInput.value = "";
+    });
+
+    addImagesBtn.addEventListener("click", () => fileInput.click());
+
+    /* --------- overlay drag&drop fichiers --------- */
+
+    let dragDepth = 0;
+
+    function hasFiles(event) {
+      if (!event.dataTransfer || !event.dataTransfer.types) return false;
+      return Array.from(event.dataTransfer.types).includes("Files");
+    }
+
+    window.addEventListener("dragenter", e => {
+      if (!hasFiles(e)) return;
+      dragDepth++;
+      dragOverlay.classList.add("show");
+      e.preventDefault();
+    });
+
+    window.addEventListener("dragover", e => {
+      if (hasFiles(e)) e.preventDefault();
+    });
+
+    ["dragleave", "drop"].forEach(evtName => {
+      window.addEventListener(evtName, e => {
+        if (!hasFiles(e)) return;
+        if (evtName === "dragleave") {
+          dragDepth = Math.max(0, dragDepth - 1);
+          if (dragDepth === 0) dragOverlay.classList.remove("show");
+        } else if (evtName === "drop") {
+          dragDepth = 0;
+          dragOverlay.classList.remove("show");
+        }
+      });
+    });
+
+    dragOverlay.addEventListener("drop", e => {
+      e.preventDefault();
+      const dt = e.dataTransfer;
+      if (dt && dt.files && dt.files.length > 0) {
+        handleFiles(dt.files);
+      }
+    });
+
+    ["dragenter", "dragover", "drop"].forEach(eventName => {
+      benchEl.addEventListener(eventName, e => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        if (eventName === "drop") {
+          const dt = e.dataTransfer;
+          if (dt && dt.files && dt.files.length > 0) {
+            handleFiles(dt.files);
+          }
+        }
+      });
+    });
+
+    /* --------- corbeille --------- */
+
+    ["dragenter", "dragover"].forEach(ev => {
+      trashBin.addEventListener(ev, e => {
+        const dragging = document.querySelector(".tier-item.dragging");
+        if (!dragging) return;
+        e.preventDefault();
+        trashBin.classList.add("drag-over");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(ev => {
+      trashBin.addEventListener(ev, e => {
+        const dragging = document.querySelector(".tier-item.dragging");
+        if (!dragging) return;
+        e.preventDefault();
+        if (ev === "drop") {
+          dragging.remove();
+        }
+        trashBin.classList.remove("drag-over");
+      });
+    });
+
+    /* --------- contrôles de ligne --------- */
+
+    function animateRowMove(row, targetRow, moveUp) {
+      const firstRect  = row.getBoundingClientRect();
+      const secondRect = targetRow.getBoundingClientRect();
+
+      if (moveUp) {
+        tierListEl.insertBefore(row, targetRow);
+      } else {
+        targetRow.after(row);
+      }
+
+      const newRect = row.getBoundingClientRect();
+      const deltaY  = secondRect.top - newRect.top;
+
+      row.style.transform = `translateY(${deltaY}px)`;
+      requestAnimationFrame(() => {
+        row.style.transform = "";
+      });
+    }
+
+    tierListEl.addEventListener("click", e => {
+      const row = e.target.closest(".tier-row");
+      if (!row) return;
+
+      if (e.target.closest(".move-up")) {
+        const prev = row.previousElementSibling;
+        if (prev) animateRowMove(row, prev, true);
+      } else if (e.target.closest(".move-down")) {
+        const next = row.nextElementSibling;
+        if (next) animateRowMove(row, next, false);
+      } else if (e.target.closest(".settings")) {
+        openModalForRow(row);
+      }
+    });
+
+    /* --------- import CSV --------- */
+
+    importCsvBtn.addEventListener("click", () => csvInput.click());
+
+    csvInput.addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = evt => {
+        try {
+          applyCsvConfig(evt.target.result);
+        } catch (err) {
+          alert("Erreur de lecture du CSV : " + err.message);
+        }
+      };
+      reader.readAsText(file, "utf-8");
+      e.target.value = "";
+    });
+
+    function applyCsvConfig(text) {
+      const lines = text.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
+      if (!lines.length) return;
+
+      const sep = lines[0].includes(";") ? ";" : ",";
+      const header = lines[0].split(sep).map(h => h.trim().toLowerCase());
+      const nameIdx  = header.indexOf("name") !== -1 ? header.indexOf("name") : header.indexOf("label");
+      const colorIdx = header.indexOf("color");
+      const styleIdx = header.indexOf("style");
+
+      if (nameIdx === -1) {
+        throw new Error("Le CSV doit contenir une colonne 'name' ou 'label'.");
+      }
+
+      const allItems = [...document.querySelectorAll(".tier-item")];
+
+      tierListEl.innerHTML = "";
+      tierCounter = 0;
+
+      lines.slice(1).forEach(line => {
+        const cols = line.split(sep);
+        const name  = (cols[nameIdx]  || "").trim();
+        const color = colorIdx !== -1 ? (cols[colorIdx] || "").trim() : "";
+        const style = styleIdx !== -1 ? (cols[styleIdx] || "").trim().toLowerCase() : "";
+        const options = {};
+        if (style === "sparkle") options.sparkle = true;
+        else if (color) options.color = color;
+        const row = createTier(name, options);
+        tierListEl.appendChild(row);
+      });
+
+      benchEl.innerHTML = "";
+      allItems.forEach(it => benchEl.appendChild(it));
+    }
+
+    /* --------- reset --------- */
+
+    function resetTierListToDefault() {
+      const allItems = [...document.querySelectorAll(".tier-item")];
+      benchEl.innerHTML = "";
+      allItems.forEach(it => benchEl.appendChild(it));
+      exportTitle.textContent = "";
+      exportSubtitle.textContent = "";
+      initDefaultTiers();
+    }
+
+    resetBtn.addEventListener("click", () => {
+      resetBackdrop.classList.add("open");
+    });
+
+    [resetClose, resetCancel].forEach(btn => {
+      btn.addEventListener("click", () => resetBackdrop.classList.remove("open"));
+    });
+
+    resetConfirm.addEventListener("click", () => {
+      resetBackdrop.classList.remove("open");
+      resetTierListToDefault();
+    });
+
+    /* --------- export PNG --------- */
+
+    function slugify(text) {
+      return text
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\w\-]+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .toLowerCase();
+    }
+
+    downloadBtn.addEventListener("click", () => {
+      const original = document.getElementById("capture-area");
+      const clone = original.cloneNode(true);
+      clone.id = "capture-area-export";
+
+      // Enlever placeholders dans le clone, et masquer les champs vides
+      clone.querySelectorAll("[data-placeholder]").forEach(el => {
+        const text = el.textContent.trim();
+        if (!text) {
+          el.remove(); // champ non rempli : n'apparait pas à l'export
+        } else {
+          el.removeAttribute("data-placeholder");
+        }
+      });
+
+      // Enlever les contrôles dans le clone
+      clone.querySelectorAll(".tier-controls").forEach(el => el.remove());
+      clone.querySelectorAll(".tier-row").forEach(row => {
+        row.style.gridTemplateColumns = "110px 1fr";
+      });
+
+      const EXPORT_WIDTH = 1200;
+      clone.style.position = "fixed";
+      clone.style.left = "-9999px";
+      clone.style.top = "0";
+      clone.style.width = EXPORT_WIDTH + "px";
+      clone.style.maxWidth = "none";
+      clone.style.margin = "0";
+
+      document.body.appendChild(clone);
+
+      html2canvas(clone, {
+        backgroundColor: "#101010",
+        scale: 2,
+        width: EXPORT_WIDTH
+      })
+        .then(canvas => {
+          const rawTitle = exportTitle.textContent.trim() || "tier-list";
+          const fileName = (slugify(rawTitle) || "tier-list") + ".png";
+          const link = document.createElement("a");
+          link.download = fileName;
+          link.href = canvas.toDataURL("image/png");
+          link.click();
+        })
+        .finally(() => {
+          document.body.removeChild(clone);
+        });
+    });
+  </script>
+</body>
+</html>
